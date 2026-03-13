@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>打字英雄 | Type Hero</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Fira+Code:wght@400;600;700&family=Rajdhani:wght@400;600;700&display=swap');
+:root{
+  --bg:#0a0e14;--surface:rgba(15,20,30,0.9);
+  --accent-cyan:#00d2ff;--accent-green:#2ecc71;--accent-gold:#f39c12;
+  --accent-red:#e74c3c;--accent-purple:#9b59b6;
+  --text:#c8d6e5;--text-dim:rgba(200,214,229,0.4);
+}
+body{
+  font-family:'Rajdhani','Fira Code',monospace;
+  background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  overflow:hidden;user-select:none;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;
+  background-image:linear-gradient(rgba(0,210,255,0.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,210,255,0.02) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+.wrapper{
+  position:relative;z-index:1;
+  width:100%;max-width:700px;padding:20px;
+}
+h1{
+  font-family:'Orbitron',monospace;font-size:30px;font-weight:900;
+  text-align:center;letter-spacing:6px;
+  background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;margin-bottom:4px;
+}
+.subtitle{
+  text-align:center;font-size:11px;color:var(--text-dim);
+  letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;
+}
+/* Mode selection */
+.mode-select{
+  display:flex;gap:8px;margin-bottom:16px;justify-content:center;flex-wrap:wrap;
+}
+.mode-btn{
+  padding:8px 18px;border-radius:20px;border:1px solid rgba(0,210,255,0.2);
+  background:rgba(0,210,255,0.05);color:var(--accent-cyan);
+  font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;
+  cursor:pointer;transition:all 0.2s;letter-spacing:1px;text-transform:uppercase;
+}
+.mode-btn:hover{background:rgba(0,210,255,0.15);transform:translateY(-1px);}
+.mode-btn.active{
+  background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));
+  color:#0a0e14;border-color:transparent;
+}
+/* Stats bar */
+.stats{
+  display:flex;gap:6px;margin-bottom:16px;
+}
+.stat{
+  flex:1;background:var(--surface);border:1px solid rgba(0,210,255,0.1);
+  border-radius:8px;padding:8px;text-align:center;
+}
+.stat-label{
+  font-size:9px;text-transform:uppercase;letter-spacing:2px;
+  color:var(--text-dim);font-family:'Orbitron',monospace;
+}
+.stat-value{
+  font-family:'Orbitron',monospace;font-size:20px;font-weight:700;
+}
+.stat-wpm .stat-value{color:var(--accent-cyan);}
+.stat-acc .stat-value{color:var(--accent-green);}
+.stat-combo .stat-value{color:var(--accent-gold);}
+.stat-time .stat-value{color:var(--accent-purple);}
+/* Typing area */
+.type-area{
+  background:var(--surface);border:1px solid rgba(0,210,255,0.15);
+  border-radius:12px;padding:24px;margin-bottom:16px;
+  min-height:160px;position:relative;overflow:hidden;
+}
+.type-display{
+  font-family:'Fira Code',monospace;font-size:20px;
+  line-height:1.8;letter-spacing:1px;word-break:break-all;
+}
+.char{color:rgba(200,214,229,0.25);transition:color 0.1s;}
+.char.correct{color:var(--accent-green);}
+.char.wrong{color:var(--accent-red);text-decoration:underline;text-decoration-color:var(--accent-red);}
+.char.current{
+  color:var(--accent-cyan);
+  border-left:2px solid var(--accent-cyan);
+  animation:cursorBlink 1s step-end infinite;
+  padding-left:1px;
+}
+@keyframes cursorBlink{0%,100%{border-color:var(--accent-cyan)}50%{border-color:transparent}}
+/* Progress bar */
+.progress-bar{
+  width:100%;height:4px;background:rgba(0,210,255,0.1);
+  border-radius:2px;margin-bottom:16px;overflow:hidden;
+}
+.progress-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent-cyan),var(--accent-green));
+  transition:width 0.3s ease;width:0;
+}
+/* Hidden input */
+.hidden-input{
+  position:absolute;opacity:0;width:0;height:0;
+}
+/* Start screen */
+.start-screen{
+  position:absolute;inset:0;
+  background:rgba(10,14,20,0.92);
+  border-radius:12px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:5;backdrop-filter:blur(4px);
+  cursor:pointer;
+  transition:opacity 0.3s;
+}
+.start-screen.hidden{opacity:0;pointer-events:none;}
+.start-icon{font-size:48px;margin-bottom:12px;}
+.start-text{
+  font-family:'Orbitron',monospace;font-size:14px;
+  color:var(--accent-cyan);letter-spacing:3px;
+  text-transform:uppercase;
+  animation:pulse 2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+/* Result screen */
+.result-screen{
+  position:absolute;inset:0;
+  background:rgba(10,14,20,0.92);
+  border-radius:12px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:5;backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.4s;
+}
+.result-screen.show{opacity:1;pointer-events:auto;}
+.result-title{
+  font-family:'Orbitron',monospace;font-size:24px;font-weight:900;
+  margin-bottom:16px;
+}
+.result-grade{
+  font-family:'Orbitron',monospace;font-size:64px;font-weight:900;
+  margin-bottom:8px;
+}
+.grade-S{background:linear-gradient(135deg,#f39c12,#e74c3c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.grade-A{color:var(--accent-green);}
+.grade-B{color:var(--accent-cyan);}
+.grade-C{color:var(--accent-gold);}
+.grade-D{color:var(--accent-red);}
+.result-stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;
+  margin-bottom:20px;
+}
+.result-stat{text-align:center;}
+.result-stat-label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+.result-stat-value{font-family:'Orbitron',monospace;font-size:22px;font-weight:700;color:var(--accent-cyan);}
+.btn-retry{
+  padding:10px 32px;border:none;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent-cyan),var(--accent-green));
+  color:#0a0e14;font-family:'Rajdhani',sans-serif;
+  font-size:14px;font-weight:700;cursor:pointer;
+  letter-spacing:2px;text-transform:uppercase;
+  transition:all 0.2s;
+}
+.btn-retry:hover{transform:translateY(-2px);filter:brightness(1.1);}
+/* Combo flash */
+.combo-flash{
+  position:fixed;inset:0;pointer-events:none;z-index:100;
+  background:radial-gradient(circle at center,rgba(0,210,255,0.15),transparent 70%);
+  opacity:0;transition:opacity 0.15s;
+}
+.combo-flash.show{opacity:1;}
+/* Word completion effect */
+.word-complete{
+  position:absolute;
+  font-family:'Orbitron',monospace;font-size:14px;
+  font-weight:700;color:var(--accent-gold);
+  pointer-events:none;z-index:10;
+  animation:wordFloat 0.6s ease forwards;
+}
+@keyframes wordFloat{
+  0%{opacity:1;transform:translateY(0) scale(1)}
+  100%{opacity:0;transform:translateY(-30px) scale(1.2)}
+}
+/* Streak indicator */
+.streak{
+  position:fixed;top:20px;right:20px;
+  font-family:'Orbitron',monospace;font-size:12px;
+  color:var(--accent-gold);opacity:0;
+  transition:opacity 0.3s;z-index:1;
+  text-align:right;
+}
+.streak.show{opacity:1;}
+.streak-count{font-size:32px;font-weight:900;display:block;}
+.streak-label{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);}
+/* Best record */
+.best-record{
+  text-align:center;margin-top:8px;
+  font-size:11px;color:var(--text-dim);
+  font-family:'Orbitron',monospace;letter-spacing:1px;
+}
+.best-record span{color:var(--accent-purple);}
+@media(max-width:500px){
+  h1{font-size:22px;letter-spacing:3px;}
+  .type-display{font-size:16px;}
+  .stat-value{font-size:16px;}
+  .stats{flex-wrap:wrap;}
+  .stat{min-width:calc(50% - 4px);}
+}
+</style>
+</head>
+<body>
+
+<div class="combo-flash" id="comboFlash"></div>
+<div class="streak" id="streak">
+  <span class="streak-count" id="streakCount">0</span>
+  <span class="streak-label">连击</span>
+</div>
+
+<div class="wrapper">
+  <h1>TYPE HERO</h1>
+  <div class="subtitle">键入 · 竞速 · 打字英雄</div>
+  
+  <div class="mode-select">
+    <button class="mode-btn active" data-mode="30" onclick="setMode(30,this)">30秒</button>
+    <button class="mode-btn" data-mode="60" onclick="setMode(60,this)">60秒</button>
+    <button class="mode-btn" data-mode="120" onclick="setMode(120,this)">120秒</button>
+    <button class="mode-btn" data-mode="zen" onclick="setMode('zen',this)">禅模式</button>
+  </div>
+  
+  <div class="stats">
+    <div class="stat stat-wpm"><div class="stat-label">WPM</div><div class="stat-value" id="wpm">0</div></div>
+    <div class="stat stat-acc"><div class="stat-label">精准</div><div class="stat-value" id="acc">100%</div></div>
+    <div class="stat stat-combo"><div class="stat-label">连击</div><div class="stat-value" id="combo">0</div></div>
+    <div class="stat stat-time"><div class="stat-label">时间</div><div class="stat-value" id="timer">30</div></div>
+  </div>
+  
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+  
+  <div class="type-area" id="typeArea">
+    <div class="type-display" id="typeDisplay"></div>
+    <input class="hidden-input" id="hiddenInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="start-screen" id="startScreen" onclick="startGame()">
+      <div class="start-icon">⌨️</div>
+      <div class="start-text">点击开始打字</div>
+    </div>
+    <div class="result-screen" id="resultScreen">
+      <div class="result-title">打字完成!</div>
+      <div class="result-grade" id="resultGrade">S</div>
+      <div class="result-stats">
+        <div class="result-stat"><div class="result-stat-value" id="rWpm">0</div><div class="result-stat-label">WPM</div></div>
+        <div class="result-stat"><div class="result-stat-value" id="rAcc">0%</div><div class="result-stat-label">精准度</div></div>
+        <div class="result-stat"><div class="result-stat-value" id="rChars">0</div><div class="result-stat-label">字符数</div></div>
+        <div class="result-stat"><div class="result-stat-value" id="rCombo">0</div><div class="result-stat-label">最大连击</div></div>
+      </div>
+      <button class="btn-retry" onclick="resetGame()">再来一局</button>
+    </div>
+  </div>
+  
+  <div class="best-record" id="bestRecord"></div>
+</div>
+
+<script>
+// ======== Audio ========
+const TypeAudio = (function(){
+  let ctx;
+  function getCtx(){if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();return ctx;}
+  function tone(f,d,v=0.03,t='sine'){
+    const c=getCtx(),o=c.createOscillator(),g=c.createGain();
+    o.type=t;o.frequency.value=f;
+    g.gain.setValueAtTime(v,c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);
+    o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+d);
+  }
+  return{
+    key(){tone(800+Math.random()*400,0.04,0.02);},
+    wrong(){tone(200,0.1,0.04,'sawtooth');},
+    combo(n){tone(400+n*50,0.15,0.04);setTimeout(()=>tone(600+n*50,0.1,0.03),60);},
+    complete(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.3,0.05),i*80));},
+    fail(){tone(200,0.2,0.04);setTimeout(()=>tone(150,0.3,0.03),150);}
+  };
+})();
+
+// ======== Word Pool ========
+const WORDS_EN = [
+  'the','be','to','of','and','a','in','that','have','it','for','not','on','with','he',
+  'as','you','do','at','this','but','his','by','from','they','we','say','her','she',
+  'or','an','will','my','one','all','would','there','their','what','so','up','out',
+  'if','about','who','get','which','go','me','when','make','can','like','time','no',
+  'just','him','know','take','people','into','year','your','good','some','could',
+  'them','see','other','than','then','now','look','only','come','its','over','think',
+  'also','back','after','use','two','how','our','work','first','well','way','even',
+  'new','want','because','any','these','give','day','most','us','great','between',
+  'need','large','under','never','last','right','move','thing','general','school',
+  'hand','high','keep','place','point','house','world','each','begin','area','city',
+  'play','group','live','where','children','power','student','while','should','home',
+  'big','long','old','same','small','open','part','turn','real','leave','might',
+  'still','close','public','seem','think','every','state','late','more','talk',
+  'program','data','system','code','function','return','value','type','class','object',
+  'array','string','number','boolean','null','true','false','error','debug','test',
+  'input','output','file','read','write','open','close','start','stop','run',
+  'build','deploy','server','client','web','app','user','admin','login','password',
+  'hello','world','pixel','cyber','neon','digital','matrix','quantum','neural','sync',
+  'alpha','beta','gamma','delta','omega','vector','signal','pulse','stream','buffer'
+];
+
+// ======== Game State ========
+let mode = 30;  // seconds or 'zen'
+let timeLeft, timerInterval;
+let text = '', charIndex = 0;
+let totalTyped = 0, correctTyped = 0;
+let comboCount = 0, maxCombo = 0;
+let startTime = null;
+let gameActive = false;
+let wordStartIdx = 0;
+
+function generateText(len=200){
+  let result = [];
+  while(result.join(' ').length < len){
+    result.push(WORDS_EN[Math.floor(Math.random()*WORDS_EN.length)]);
+  }
+  return result.join(' ');
+}
+
+function renderText(){
+  const display = document.getElementById('typeDisplay');
+  let html = '';
+  for(let i=0;i<text.length;i++){
+    let cls = '';
+    if(i<charIndex){
+      cls = text[i] === typed[i] ? 'correct' : 'wrong';
+    } else if(i===charIndex){
+      cls = 'current';
+    }
+    const ch = text[i]===' ' ? '&nbsp;' : text[i];
+    html += `<span class="char ${cls}">${ch}</span>`;
+  }
+  display.innerHTML = html;
+  
+  // Auto-scroll
+  const current = display.querySelector('.char.current');
+  if(current){
+    const area = document.getElementById('typeArea');
+    const areaRect = area.getBoundingClientRect();
+    const charRect = current.getBoundingClientRect();
+    if(charRect.top > areaRect.bottom - 40){
+      display.style.transform = `translateY(-${charRect.top - areaRect.top - 30}px)`;
+    }
+  }
+}
+
+let typed = [];
+
+function setMode(m, btn){
+  if(gameActive) return;
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(m==='zen'){
+    document.getElementById('timer').textContent = '∞';
+  } else {
+    document.getElementById('timer').textContent = m;
+  }
+  resetGame();
+}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  const input = document.getElementById('hiddenInput');
+  input.focus();
+  
+  text = generateText(500);
+  typed = [];
+  charIndex = 0;
+  totalTyped = 0;
+  correctTyped = 0;
+  comboCount = 0;
+  maxCombo = 0;
+  wordStartIdx = 0;
+  startTime = null;
+  gameActive = true;
+  
+  document.getElementById('typeDisplay').style.transform = '';
+  
+  if(mode!=='zen'){
+    timeLeft = mode;
+    document.getElementById('timer').textContent = timeLeft;
+  }
+  
+  renderText();
+  updateStats();
+}
+
+function resetGame(){
+  gameActive = false;
+  clearInterval(timerInterval);
+  timerInterval = null;
+  startTime = null;
+  
+  document.getElementById('startScreen').classList.remove('hidden');
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('streak').classList.remove('show');
+  document.getElementById('typeDisplay').style.transform = '';
+  document.getElementById('typeDisplay').innerHTML = '';
+  document.getElementById('progress').style.width = '0';
+  document.getElementById('wpm').textContent = '0';
+  document.getElementById('acc').textContent = '100%';
+  document.getElementById('combo').textContent = '0';
+  
+  if(mode!=='zen'){
+    document.getElementById('timer').textContent = mode;
+  } else {
+    document.getElementById('timer').textContent = '∞';
+  }
+  
+  updateBestRecord();
+}
+
+function endGame(){
+  gameActive = false;
+  clearInterval(timerInterval);
+  
+  const elapsed = (Date.now()-startTime)/1000;
+  const wpm = Math.round((correctTyped/5)/(elapsed/60));
+  const acc = totalTyped>0 ? Math.round((correctTyped/totalTyped)*100) : 100;
+  
+  // Grade
+  let grade, gradeClass;
+  if(wpm>=100 && acc>=98){grade='S';gradeClass='grade-S';}
+  else if(wpm>=70 && acc>=95){grade='A';gradeClass='grade-A';}
+  else if(wpm>=50 && acc>=90){grade='B';gradeClass='grade-B';}
+  else if(wpm>=30 && acc>=85){grade='C';gradeClass='grade-C';}
+  else{grade='D';gradeClass='grade-D';}
+  
+  document.getElementById('resultGrade').textContent = grade;
+  document.getElementById('resultGrade').className = 'result-grade '+gradeClass;
+  document.getElementById('rWpm').textContent = wpm;
+  document.getElementById('rAcc').textContent = acc+'%';
+  document.getElementById('rChars').textContent = correctTyped;
+  document.getElementById('rCombo').textContent = maxCombo;
+  document.getElementById('resultScreen').classList.add('show');
+  
+  // Save best
+  const key = `typeHero-best-${mode}`;
+  const prevBest = parseInt(localStorage.getItem(key)||'0');
+  if(wpm>prevBest){
+    localStorage.setItem(key, wpm);
+  }
+  updateBestRecord();
+  
+  if(grade==='S'||grade==='A') TypeAudio.complete();
+  else TypeAudio.fail();
+}
+
+function updateStats(){
+  if(!startTime || !gameActive) return;
+  const elapsed = (Date.now()-startTime)/1000;
+  const wpm = elapsed>0 ? Math.round((correctTyped/5)/(elapsed/60)) : 0;
+  const acc = totalTyped>0 ? Math.round((correctTyped/totalTyped)*100) : 100;
+  
+  document.getElementById('wpm').textContent = wpm;
+  document.getElementById('acc').textContent = acc+'%';
+  document.getElementById('combo').textContent = comboCount;
+  
+  // Progress
+  if(mode!=='zen'){
+    document.getElementById('progress').style.width = ((1-timeLeft/mode)*100)+'%';
+  } else {
+    document.getElementById('progress').style.width = Math.min((charIndex/text.length)*100,100)+'%';
+  }
+  
+  // Streak display
+  if(comboCount >= 5){
+    document.getElementById('streak').classList.add('show');
+    document.getElementById('streakCount').textContent = comboCount;
+  } else {
+    document.getElementById('streak').classList.remove('show');
+  }
+}
+
+function updateBestRecord(){
+  const key = `typeHero-best-${mode}`;
+  const best = parseInt(localStorage.getItem(key)||'0');
+  const el = document.getElementById('bestRecord');
+  if(best>0){
+    el.innerHTML = `最佳记录 <span>${best} WPM</span> (${mode==='zen'?'禅模式':mode+'秒'})`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+// ======== Input Handling ========
+document.getElementById('hiddenInput').addEventListener('input', e=>{
+  if(!gameActive) return;
+  
+  // Start timer on first keystroke
+  if(!startTime){
+    startTime = Date.now();
+    if(mode!=='zen'){
+      timeLeft = mode;
+      timerInterval = setInterval(()=>{
+        timeLeft--;
+        document.getElementById('timer').textContent = timeLeft;
+        updateStats();
+        if(timeLeft<=0) endGame();
+      },1000);
+    }
+  }
+  
+  const val = e.data;
+  if(!val) return; // backspace etc handled separately
+  
+  for(let i=0;i<val.length;i++){
+    if(charIndex >= text.length){
+      // Generate more text
+      text += ' ' + generateText(200);
+    }
+    
+    const expected = text[charIndex];
+    const actual = val[i];
+    
+    totalTyped++;
+    typed[charIndex] = actual;
+    
+    if(actual === expected){
+      correctTyped++;
+      comboCount++;
+      if(comboCount > maxCombo) maxCombo = comboCount;
+      TypeAudio.key();
+      
+      // Check word completion
+      if(expected===' ' || charIndex === text.length-1){
+        if(comboCount >= 5){
+          showComboFlash();
+          TypeAudio.combo(Math.min(comboCount,20));
+        }
+      }
+    } else {
+      comboCount = 0;
+      TypeAudio.wrong();
+    }
+    
+    charIndex++;
+  }
+  
+  e.target.value = '';
+  renderText();
+  updateStats();
+});
+
+document.getElementById('hiddenInput').addEventListener('keydown', e=>{
+  if(!gameActive) return;
+  if(e.key==='Backspace'){
+    e.preventDefault();
+    // No backspace in this typing test - mistakes stay
+  }
+});
+
+// Click on type area to focus input
+document.getElementById('typeArea').addEventListener('click', ()=>{
+  if(gameActive){
+    document.getElementById('hiddenInput').focus();
+  }
+});
+
+function showComboFlash(){
+  const flash = document.getElementById('comboFlash');
+  flash.classList.add('show');
+  setTimeout(()=>flash.classList.remove('show'),150);
+}
+
+updateBestRecord();
+
+// Keep input focused
+setInterval(()=>{
+  if(gameActive){
+    document.getElementById('hiddenInput').focus();
+  }
+},500);
+</script>
+</body>
+</html>
